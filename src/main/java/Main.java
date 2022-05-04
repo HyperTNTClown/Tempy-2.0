@@ -4,7 +4,6 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.voice.GenericGuildVoiceEvent;
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.AnnotatedEventManager;
 import net.dv8tion.jda.api.hooks.SubscribeEvent;
