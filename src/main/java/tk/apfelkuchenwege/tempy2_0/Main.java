@@ -1,3 +1,5 @@
+package tk.apfelkuchenwege.tempy2_0;
+
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -28,7 +30,7 @@ public class Main {
         JDABuilder builder = JDABuilder.createDefault("OTcxNDIwODY2MDQwNzA1MDU0.YnKQLg.az9gNQpY4k7FyBzoT9TDAKnElgY");
         builder.setBulkDeleteSplittingEnabled(false);
         builder.setCompression(Compression.NONE);
-        builder.setActivity(Activity.listening("my life"));
+        builder.setActivity(Activity.listening("niemandem"));
         builder.setChunkingFilter(ChunkingFilter.NONE);
         builder.enableCache(CacheFlag.EMOTE);
         builder.setEnabledIntents(GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_EMOJIS);
