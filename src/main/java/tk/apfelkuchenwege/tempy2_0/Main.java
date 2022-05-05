@@ -109,14 +109,17 @@ public class Main {
             return;
         }
         if (channels.contains(e.getVoiceState().getChannel())) {
+            System.out.println("Joined existing channel");
             matchingTextChannels.get(e.getVoiceState().getChannel()).upsertPermissionOverride(e.getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
             matchingTextChannels.get(e.getVoiceState().getChannel()).sendMessage("<@" + e.getMember().getId() + "> ist dem Kanal beigetreten").queue();
         }
         try {
+            System.out.println(guildAudioCreationChannels.get(e.getGuild().getId()));
             if (e.getVoiceState().getChannel().getId().equals(guildAudioCreationChannels.get(e.getGuild()).getId())) {
                 if (category == null) {
                     category = e.getGuild().createCategory("Eigene Kan\u00e4le").complete();
                 }
+                System.out.println("Joined Creation channel");
                 AudioChannel vc = e.getGuild()
                         .createVoiceChannel(e.getMember().getUser().getName() + "s Sprachkanal", category)
                         .addMemberPermissionOverride(Long.parseLong(e.getMember().getId()), Permission.ALL_PERMISSIONS, 0L)
@@ -146,7 +149,7 @@ public class Main {
             savedAfkDeafMembers.put(e.getMember(), e.getMember().getVoiceState().getChannel());
             e.getGuild().moveVoiceMember(e.getMember(), e.getGuild().getAfkChannel()).queue();
         } else {
-            if (savedAfkDeafMembers.containsKey(e.getMember()) && e.getGuild().getVoiceChannelById(savedAfkDeafMembers.get(e.getMember()).getId()) != null) {
+            if (savedAfkDeafMembers.containsKey(e.getMember())) {
                 e.getGuild().moveVoiceMember(e.getMember(), savedAfkDeafMembers.get(e.getMember())).queue();
                 savedAfkDeafMembers.remove(e.getMember());
             }
