@@ -19,10 +19,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import javax.security.auth.login.LoginException;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 public class Main {
     ArrayList<AudioChannel> channels = new ArrayList<>();
@@ -46,18 +43,21 @@ public class Main {
 
         JDA jda = builder.build();
 
-        jda.upsertCommand("test", "fisch");
+        jda.upsertCommand("test", "fisch").queue();
         jda.awaitReady();
         try {
             Properties prop = new Properties();
             prop.load(new FileInputStream("config.properties"));
 
             for (String key : prop.stringPropertyNames()) {
-                guildAudioCreationChannels.put(jda.getGuildById(key), jda.getGuildById(key).getVoiceChannelById(prop.getProperty(key)));
+                guildAudioCreationChannels.put(jda.getGuildById(key), Objects.requireNonNull(jda.getGuildById(key)).getVoiceChannelById(prop.getProperty(key)));
             }
         } catch (FileNotFoundException e) {
             File file = new File("config.properties");
-            file.createNewFile();
+            boolean created = file.createNewFile();
+            if (!created) {
+                System.out.println("Failed to create config file");
+            }
         }
 
     }
@@ -68,7 +68,7 @@ public class Main {
                 if (channels.contains(((GuildVoiceLeaveEvent) e).getChannelLeft())){
                     matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
                     try {
-                        matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).upsertPermissionOverride(((GuildVoiceLeaveEvent) e).getMember()).setDenied(Permission.VIEW_CHANNEL).queue();
+                        matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).upsertPermissionOverride(e.getMember()).setDenied(Permission.VIEW_CHANNEL).queue();
                     } catch (Exception ex) {
                         return;
                     }
@@ -83,7 +83,7 @@ public class Main {
                 if (channels.contains(((GuildVoiceMoveEvent) e).getChannelLeft())){
                     matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
                     try {
-                    matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).upsertPermissionOverride(((GuildVoiceMoveEvent) e).getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
+                    matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).upsertPermissionOverride(e.getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
                     } catch (Exception ex) {
                         return;
                     }
@@ -107,17 +107,14 @@ public class Main {
             return;
         }
         if (channels.contains(e.getVoiceState().getChannel())) {
-            System.out.println("Joined existing channel");
             matchingTextChannels.get(e.getVoiceState().getChannel()).upsertPermissionOverride(e.getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
             matchingTextChannels.get(e.getVoiceState().getChannel()).sendMessage("<@" + e.getMember().getId() + "> ist dem Kanal beigetreten").queue();
         }
         try {
-            System.out.println(guildAudioCreationChannels.get(e.getGuild().getId()));
             if (e.getVoiceState().getChannel().getId().equals(guildAudioCreationChannels.get(e.getGuild()).getId())) {
                 if (category == null) {
                     category = e.getGuild().createCategory("Eigene Kan\u00e4le").complete();
                 }
-                System.out.println("Joined Creation channel");
                 AudioChannel vc = e.getGuild()
                         .createVoiceChannel(e.getMember().getUser().getName() + "s Sprachkanal", category)
                         .addMemberPermissionOverride(Long.parseLong(e.getMember().getId()), Permission.ALL_PERMISSIONS, 0L)
