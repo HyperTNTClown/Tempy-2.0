@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.voice.GenericGuildVoiceEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceDeafenEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -29,6 +30,7 @@ public class Main {
     ArrayList<AudioChannel> toRemove = new ArrayList<>();
     HashMap<AudioChannel, TextChannel> matchingTextChannels = new HashMap<>();
     HashMap<Member, AudioChannel> memberAudioChannels = new HashMap<>();
+    HashMap<Member, AudioChannel> savedAfkDeafMembers = new HashMap<>();
     static HashMap<Guild, AudioChannel> guildAudioCreationChannels = new HashMap<>();
     static Map<String, String> env = System.getenv();
 
@@ -136,6 +138,21 @@ public class Main {
             }
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    //Just for people who annoyingly sit in the channel deafened
+    @SubscribeEvent
+    public void onDeafen(GuildVoiceDeafenEvent e) {
+        if (e.getGuild().getAfkChannel() == null) return;
+        if (e.isDeafened()) {
+            savedAfkDeafMembers.put(e.getMember(), e.getMember().getVoiceState().getChannel());
+            e.getGuild().moveVoiceMember(e.getMember(), e.getGuild().getAfkChannel()).queue();
+        } else {
+            if (savedAfkDeafMembers.containsKey(e.getMember())) {
+                e.getGuild().moveVoiceMember(e.getMember(), savedAfkDeafMembers.get(e.getMember())).queue();
+                savedAfkDeafMembers.remove(e.getMember());
+            }
         }
     }
 
