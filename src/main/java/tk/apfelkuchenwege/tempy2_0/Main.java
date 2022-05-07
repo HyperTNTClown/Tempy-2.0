@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
 import net.dv8tion.jda.api.events.guild.voice.GenericGuildVoiceEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceDeafenEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -19,13 +20,17 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import javax.security.auth.login.LoginException;
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
 
 public class Main {
     ArrayList<AudioChannel> channels = new ArrayList<>();
     ArrayList<AudioChannel> toRemove = new ArrayList<>();
     HashMap<AudioChannel, TextChannel> matchingTextChannels = new HashMap<>();
     HashMap<Member, AudioChannel> memberAudioChannels = new HashMap<>();
+    HashMap<Member, AudioChannel> savedAfkDeafMembers = new HashMap<>();
     static HashMap<Guild, AudioChannel> guildAudioCreationChannels = new HashMap<>();
     static Map<String, String> env = System.getenv();
 
@@ -43,21 +48,18 @@ public class Main {
 
         JDA jda = builder.build();
 
-        jda.upsertCommand("test", "fisch").queue();
+        jda.upsertCommand("test", "fisch");
         jda.awaitReady();
         try {
             Properties prop = new Properties();
             prop.load(new FileInputStream("config.properties"));
 
             for (String key : prop.stringPropertyNames()) {
-                guildAudioCreationChannels.put(jda.getGuildById(key), Objects.requireNonNull(jda.getGuildById(key)).getVoiceChannelById(prop.getProperty(key)));
+                guildAudioCreationChannels.put(jda.getGuildById(key), jda.getGuildById(key).getVoiceChannelById(prop.getProperty(key)));
             }
         } catch (FileNotFoundException e) {
             File file = new File("config.properties");
-            boolean created = file.createNewFile();
-            if (!created) {
-                System.out.println("Failed to create config file");
-            }
+            file.createNewFile();
         }
 
     }
@@ -68,7 +70,7 @@ public class Main {
                 if (channels.contains(((GuildVoiceLeaveEvent) e).getChannelLeft())){
                     matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
                     try {
-                        matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).upsertPermissionOverride(e.getMember()).setDenied(Permission.VIEW_CHANNEL).queue();
+                        matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).upsertPermissionOverride(((GuildVoiceLeaveEvent) e).getMember()).setDenied(Permission.VIEW_CHANNEL).queue();
                     } catch (Exception ex) {
                         return;
                     }
@@ -83,7 +85,7 @@ public class Main {
                 if (channels.contains(((GuildVoiceMoveEvent) e).getChannelLeft())){
                     matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
                     try {
-                    matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).upsertPermissionOverride(e.getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
+                    matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).upsertPermissionOverride(((GuildVoiceMoveEvent) e).getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
                     } catch (Exception ex) {
                         return;
                     }
@@ -133,6 +135,21 @@ public class Main {
             }
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    //Just for people who annoyingly sit in the channel deafened
+    @SubscribeEvent
+    public void onDeafen(GuildVoiceDeafenEvent e) {
+        if (e.getGuild().getAfkChannel() == null) return;
+        if (e.isDeafened()) {
+            savedAfkDeafMembers.put(e.getMember(), e.getMember().getVoiceState().getChannel());
+            e.getGuild().moveVoiceMember(e.getMember(), e.getGuild().getAfkChannel()).queue();
+        } else {
+            if (savedAfkDeafMembers.containsKey(e.getMember()) && e.getGuild().getVoiceChannelById(savedAfkDeafMembers.get(e.getMember()).getId()) != null) {
+                e.getGuild().moveVoiceMember(e.getMember(), savedAfkDeafMembers.get(e.getMember())).queue();
+                savedAfkDeafMembers.remove(e.getMember());
+            }
         }
     }
 
