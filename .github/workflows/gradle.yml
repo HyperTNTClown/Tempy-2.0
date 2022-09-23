@@ -24,5 +24,7 @@ jobs:
         uses: bxb100/action-upload-webdav@v1
         with:
           webdav_address: https://webdav.apflkchn.tk/
+          webdav_username: user
+          webdav_password: password
           webdav_upload_path: "/${{github.repository}}/${{github.run_number}}"
           files: "./build/libs/*.jar"
