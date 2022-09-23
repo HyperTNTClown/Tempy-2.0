@@ -20,3 +20,9 @@ jobs:
         with:
           name: mobbing-build
           path: build/libs/*.jar
+      - name: Upload to Webdav
+        uses: bxb100/action-upload-webdav@v1
+        with:
+          webdav_address: https://webdav.apflkchn.tk/
+          webdav_upload_path: "/${{github.repository}}/${{github.run_number}}"
+          files: "./build/libs/*.jar"
