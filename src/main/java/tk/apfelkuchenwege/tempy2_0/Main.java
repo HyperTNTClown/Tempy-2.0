@@ -5,10 +5,7 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.ReadyEvent;
-import net.dv8tion.jda.api.events.guild.voice.GenericGuildVoiceEvent;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceDeafenEvent;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceMoveEvent;
+import net.dv8tion.jda.api.events.guild.voice.*;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.AnnotatedEventManager;
 import net.dv8tion.jda.api.hooks.SubscribeEvent;
@@ -65,6 +62,9 @@ public class Main {
     }
     @SubscribeEvent
     public void onVoiceChannelEvent(GenericGuildVoiceEvent e) {
+        if (e instanceof GuildVoiceSuppressEvent) {
+            return;
+        }
         if (e instanceof GuildVoiceMoveEvent || e instanceof GuildVoiceLeaveEvent) {
             if (e instanceof GuildVoiceLeaveEvent) {
                 if (channels.contains(((GuildVoiceLeaveEvent) e).getChannelLeft())){
