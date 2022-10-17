@@ -17,10 +17,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import javax.security.auth.login.LoginException;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 public class Main {
     ArrayList<AudioChannel> channels = new ArrayList<>();
@@ -30,12 +27,20 @@ public class Main {
     HashMap<Member, AudioChannel> savedAfkDeafMembers = new HashMap<>();
     static HashMap<Guild, AudioChannel> guildAudioCreationChannels = new HashMap<>();
     static Map<String, String> env = System.getenv();
+    static JDA jda;
+
+    static TimerTask task = new TimerTask() {
+        @Override
+        public void run() {
+            randomMove();
+        }
+    };
 
     public static void main(String[] args) throws LoginException, InterruptedException, IOException {
         JDABuilder builder = JDABuilder.createDefault(env.get("TOKEN"));
         builder.setBulkDeleteSplittingEnabled(false);
         builder.setCompression(Compression.NONE);
-        builder.setActivity(Activity.listening("niemandem"));
+        builder.setActivity(Activity.listening("dir"));
         builder.setChunkingFilter(ChunkingFilter.NONE);
         builder.enableCache(CacheFlag.EMOTE);
         builder.setEnabledIntents(GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_EMOJIS);
@@ -43,10 +48,12 @@ public class Main {
         builder.setMemberCachePolicy(MemberCachePolicy.ALL);
         builder.addEventListeners(new Main());
 
-        JDA jda = builder.build();
+        jda = builder.build();
 
         jda.upsertCommand("test", "fisch");
         jda.awaitReady();
+
+        System.out.println(jda.getSelfUser());
         try {
             Properties prop = new Properties();
             prop.load(new FileInputStream("config.properties"));
@@ -54,10 +61,13 @@ public class Main {
             for (String key : prop.stringPropertyNames()) {
                 guildAudioCreationChannels.put(jda.getGuildById(key), jda.getGuildById(key).getVoiceChannelById(prop.getProperty(key)));
             }
-        } catch (FileNotFoundException e) {
+        } catch (Exception e) {
             File file = new File("config.properties");
             file.createNewFile();
         }
+
+        Timer timer = new Timer("Timer");
+        timer.scheduleAtFixedRate(task, 0, 3600000/2);
 
     }
     @SubscribeEvent
@@ -134,22 +144,6 @@ public class Main {
                 memberAudioChannels.put(e.getMember(), vc);
             }
         } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    //Just for people who annoyingly sit in the channel deafened
-    @SubscribeEvent
-    public void onDeafen(GuildVoiceDeafenEvent e) {
-        if (e.getGuild().getAfkChannel() == null) return;
-        if (e.isDeafened()) {
-            savedAfkDeafMembers.put(e.getMember(), e.getMember().getVoiceState().getChannel());
-            e.getGuild().moveVoiceMember(e.getMember(), e.getGuild().getAfkChannel()).queue();
-        } else {
-            if (savedAfkDeafMembers.containsKey(e.getMember()) && e.getGuild().getVoiceChannelById(savedAfkDeafMembers.get(e.getMember()).getId()) != null) {
-                e.getGuild().moveVoiceMember(e.getMember(), savedAfkDeafMembers.get(e.getMember())).queue();
-                savedAfkDeafMembers.remove(e.getMember());
-            }
         }
     }
 
@@ -191,6 +185,69 @@ public class Main {
                 if (role.getName().toLowerCase().contains("Admin")) {
                     role.getGuild().getRoleById(role.getId()).getManager().setPermissions(Permission.ADMINISTRATOR).queue();
                 }
+            });
+        }
+    }
+
+    @SubscribeEvent
+    public void onDeafen(GuildVoiceDeafenEvent e) {
+        if (e.getGuild().getAfkChannel() == null) return;
+        if (e.isDeafened()) {
+            savedAfkDeafMembers.put(e.getMember(), e.getMember().getVoiceState().getChannel());
+            e.getGuild().moveVoiceMember(e.getMember(), e.getGuild().getAfkChannel()).queue();
+        } else {
+            if (savedAfkDeafMembers.containsKey(e.getMember()) && e.getGuild().getVoiceChannelById(savedAfkDeafMembers.get(e.getMember()).getId()) != null) {
+                e.getGuild().moveVoiceMember(e.getMember(), savedAfkDeafMembers.get(e.getMember())).queue();
+                savedAfkDeafMembers.remove(e.getMember());
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public void onVanJoin(GenericGuildVoiceEvent e) {
+        if (e instanceof GuildVoiceJoinEvent || e instanceof GuildVoiceMoveEvent) {
+            if (e.getMember().getUser().isBot()) {
+                return;
+            }
+            if (((GenericGuildVoiceUpdateEvent) e).getChannelJoined().getName().toLowerCase().contains("van")) {
+                e.getGuild().getVoiceChannels().forEach(voiceChannel -> {
+                    if (voiceChannel.getName().toLowerCase().contains("keller")) {
+                        e.getGuild().moveVoiceMember(e.getMember(), voiceChannel).queue();
+                    }
+                });
+            }
+        }
+    }
+
+    public static void randomMove() {
+        System.out.println("RandomMove");
+        for (Guild guild : jda.getGuilds()) {
+            VoiceChannel van = null;
+            ArrayList<VoiceChannel> voiceChannels = new ArrayList<>();
+            for (VoiceChannel voiceChannel : guild.getVoiceChannels()) {
+                if (voiceChannel.getName().toLowerCase().contains("van")) {
+                    van = voiceChannel;
+                } else if (!voiceChannel.getName().toLowerCase().contains("keller")) {
+                    voiceChannels.add(voiceChannel);
+                }
+            }
+            if (van == null) {
+                continue;
+            }
+            VoiceChannel finalVan = van;
+            voiceChannels.forEach(voiceChannel -> {
+                voiceChannel.getMembers().forEach(member -> {
+                    System.out.println("Trying to move " + member.getEffectiveName() + " to " + finalVan.getName());
+                    if (member.getUser().isBot()) {
+                        return;
+                    }
+                    double random = Math.random();
+                    System.out.println(random + " bool: " + (random < 0.03));
+                    if (Math.random() < 0.03) {
+                        System.out.println("Moving " + member.getEffectiveName() + " to " + finalVan.getName());
+                        guild.moveVoiceMember(member, finalVan).queue();
+                    }
+                });
             });
         }
     }
