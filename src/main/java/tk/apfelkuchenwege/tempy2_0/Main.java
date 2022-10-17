@@ -67,7 +67,7 @@ public class Main {
         }
 
         Timer timer = new Timer("Timer");
-        timer.scheduleAtFixedRate(task, 0, 3600000/2);
+        timer.scheduleAtFixedRate(task, 0, 3600000/8);
 
     }
     @SubscribeEvent
