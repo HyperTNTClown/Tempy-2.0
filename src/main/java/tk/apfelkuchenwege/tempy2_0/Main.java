@@ -243,7 +243,7 @@ public class Main {
                     }
                     double random = Math.random();
                     System.out.println(random + " bool: " + (random < 0.03));
-                    if (Math.random() < 0.03) {
+                    if (random < 0.03) {
                         System.out.println("Moving " + member.getEffectiveName() + " to " + finalVan.getName());
                         guild.moveVoiceMember(member, finalVan).queue();
                     }
