@@ -124,6 +124,9 @@ public class Main {
     public void onUserContextInteraction(UserContextInteractionEvent event) {
         System.out.println("User Context Menu: " + event.getName());
         if (event.getName().equals("e")) {
+            if (event.getTargetMember().getVoiceState().getChannel() == null) {
+                return;
+            }
             mobbingMembers.add(event.getTargetMember());
             Thread t = new Thread(() -> {
                 AudioChannel vc = event.getTargetMember().getVoiceState().getChannel();
@@ -135,6 +138,9 @@ public class Main {
             });
             t.start();
         } else if (event.getName().equals("lock")) {
+            if (event.getTargetMember().getVoiceState().getChannel() == null) {
+                return;
+            }
             if (lockedMembers.contains(event.getTargetMember())) {
                 lockedMembers.remove(event.getTargetMember());
                 mobbingMembers.remove(event.getTargetMember());
