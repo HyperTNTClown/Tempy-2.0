@@ -10,10 +10,8 @@ import net.dv8tion.jda.api.entities.channel.concrete.Category;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.AudioChannel;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
-import net.dv8tion.jda.api.events.guild.voice.GenericGuildVoiceEvent;
 import net.dv8tion.jda.api.events.guild.voice.GuildVoiceDeafenEvent;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceSuppressEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
 import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.UserContextInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -28,7 +26,6 @@ import net.dv8tion.jda.api.utils.Compression;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
-import javax.security.auth.login.LoginException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -42,11 +39,39 @@ public class Main {
     HashMap<Member, AudioChannel> memberAudioChannels = new HashMap<>();
     HashMap<Member, AudioChannel> savedAfkDeafMembers = new HashMap<>();
 
-    static ArrayList<Member> mobbingMembers = new ArrayList<>();
+    ArrayList<Member> mobbingMembers = new ArrayList<>();
 
     static HashMap<Guild, AudioChannel> guildAudioCreationChannels = new HashMap<>();
     static Map<String, String> env = System.getenv();
     static JDA jda;
+
+    ArrayList<Member> lockedMembers = new ArrayList<>();
+    Thread lockThread = new Thread(() -> {
+        while (true) {
+            if (lockedMembers.size() == 0) {
+                return;
+            }
+            final ArrayList<Member> members = (ArrayList<Member>) lockedMembers.clone();
+            for (Member member : members) {
+                if (member.getVoiceState().getChannel() != null) {
+                    member.getGuild().moveVoiceMember(member, member.getGuild().getAfkChannel()).complete();
+                }
+            }
+        }
+    });
+    Thread tLockThread = new Thread(() -> {
+        while (true) {
+            if (lockedMembers.size() == 0) {
+                return;
+            }
+            final ArrayList<Member> members = (ArrayList<Member>) lockedMembers.clone();
+            for (Member member : members) {
+                if (member.getVoiceState().getChannel() != null) {
+                    member.getGuild().moveVoiceMember(member, member.getGuild().getAfkChannel()).complete();
+                }
+            }
+        }
+    });
 
     static TimerTask task = new TimerTask() {
         @Override
@@ -55,7 +80,7 @@ public class Main {
         }
     };
 
-    public static void main(String[] args) throws LoginException, InterruptedException, IOException {
+    public static void main(String[] args) throws InterruptedException, IOException {
         JDABuilder builder = JDABuilder.createDefault(env.get("TOKEN"));
         builder.setBulkDeleteSplittingEnabled(false);
         builder.setCompression(Compression.NONE);
@@ -69,8 +94,8 @@ public class Main {
 
         jda = builder.build();
 
-        jda.upsertCommand("test", "fisch");
         jda.awaitReady();
+
 
         System.out.println(jda.getSelfUser());
         try {
@@ -87,8 +112,7 @@ public class Main {
 
         jda.getGuildById("886658879797215303").updateCommands().addCommands(
                 Commands.context(Command.Type.USER, "e"),
-                Commands.context(Command.Type.MESSAGE, "Count words"),
-                Commands.user("fsisch").setName("fisch")
+                Commands.user("lock").setName("lock")
         ).queue();
 
         Timer timer = new Timer("Timer");
@@ -98,15 +122,30 @@ public class Main {
 
     @SubscribeEvent
     public void onUserContextInteraction(UserContextInteractionEvent event) {
-        System.out.println("User Context Menu");
+        System.out.println("User Context Menu: " + event.getName());
         if (event.getName().equals("e")) {
-            new Thread(() -> {
-                AudioChannel vc = event.getGuild().getMember(event.getTargetMember()).getVoiceState().getChannel();
-                for (int i = 0; i < 5; i++) {
+            mobbingMembers.add(event.getTargetMember());
+            Thread t = new Thread(() -> {
+                AudioChannel vc = event.getTargetMember().getVoiceState().getChannel();
+                for (int i = 0; i < 10; i++) {
                     event.getGuild().moveVoiceMember(event.getTargetMember(), event.getGuild().getAfkChannel()).complete();
                     event.getGuild().moveVoiceMember(event.getTargetMember(), vc).complete();
                 }
-            }).start();
+                mobbingMembers.remove(event.getTargetMember());
+            });
+            t.start();
+        } else if (event.getName().equals("lock")) {
+            if (lockedMembers.contains(event.getTargetMember())) {
+                lockedMembers.remove(event.getTargetMember());
+                mobbingMembers.remove(event.getTargetMember());
+            } else {
+                lockedMembers.add(event.getTargetMember());
+                mobbingMembers.add(event.getTargetMember());
+                if (!lockThread.isAlive()) {
+                    lockThread = tLockThread;
+                    lockThread.start();
+                }
+            }
         }
     }
 
