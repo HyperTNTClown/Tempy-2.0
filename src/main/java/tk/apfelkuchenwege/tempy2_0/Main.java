@@ -3,12 +3,25 @@ package tk.apfelkuchenwege.tempy2_0;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.events.ReadyEvent;
-import net.dv8tion.jda.api.events.guild.voice.*;
+import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.AudioChannel;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
+import net.dv8tion.jda.api.events.guild.voice.GenericGuildVoiceEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceDeafenEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceSuppressEvent;
+import net.dv8tion.jda.api.events.interaction.command.MessageContextInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.UserContextInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.AnnotatedEventManager;
 import net.dv8tion.jda.api.hooks.SubscribeEvent;
+import net.dv8tion.jda.api.interactions.commands.Command;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.Compression;
@@ -16,7 +29,10 @@ import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 import javax.security.auth.login.LoginException;
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.*;
 
 public class Main {
@@ -25,6 +41,9 @@ public class Main {
     HashMap<AudioChannel, TextChannel> matchingTextChannels = new HashMap<>();
     HashMap<Member, AudioChannel> memberAudioChannels = new HashMap<>();
     HashMap<Member, AudioChannel> savedAfkDeafMembers = new HashMap<>();
+
+    static ArrayList<Member> mobbingMembers = new ArrayList<>();
+
     static HashMap<Guild, AudioChannel> guildAudioCreationChannels = new HashMap<>();
     static Map<String, String> env = System.getenv();
     static JDA jda;
@@ -42,8 +61,8 @@ public class Main {
         builder.setCompression(Compression.NONE);
         builder.setActivity(Activity.listening("dir"));
         builder.setChunkingFilter(ChunkingFilter.NONE);
-        builder.enableCache(CacheFlag.EMOTE);
-        builder.setEnabledIntents(GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_EMOJIS);
+        builder.enableCache(CacheFlag.EMOJI);
+        builder.setEnabledIntents(GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_EMOJIS_AND_STICKERS, GatewayIntent.SCHEDULED_EVENTS, GatewayIntent.MESSAGE_CONTENT);
         builder.setEventManager(new AnnotatedEventManager());
         builder.setMemberCachePolicy(MemberCachePolicy.ALL);
         builder.addEventListeners(new Main());
@@ -66,54 +85,82 @@ public class Main {
             file.createNewFile();
         }
 
+        jda.getGuildById("886658879797215303").updateCommands().addCommands(
+                Commands.context(Command.Type.USER, "e"),
+                Commands.context(Command.Type.MESSAGE, "Count words"),
+                Commands.user("fsisch").setName("fisch")
+        ).queue();
+
         Timer timer = new Timer("Timer");
         timer.scheduleAtFixedRate(task, 0, 3600000/8);
 
     }
+
     @SubscribeEvent
-    public void onVoiceChannelEvent(GenericGuildVoiceEvent e) {
-        if (e instanceof GuildVoiceSuppressEvent) {
-            return;
+    public void onUserContextInteraction(UserContextInteractionEvent event) {
+        System.out.println("User Context Menu");
+        if (event.getName().equals("e")) {
+            new Thread(() -> {
+                AudioChannel vc = event.getGuild().getMember(event.getTargetMember()).getVoiceState().getChannel();
+                for (int i = 0; i < 5; i++) {
+                    event.getGuild().moveVoiceMember(event.getTargetMember(), event.getGuild().getAfkChannel()).complete();
+                    event.getGuild().moveVoiceMember(event.getTargetMember(), vc).complete();
+                }
+            }).start();
         }
-        if (e instanceof GuildVoiceMoveEvent || e instanceof GuildVoiceLeaveEvent) {
-            if (e instanceof GuildVoiceLeaveEvent) {
-                if (channels.contains(((GuildVoiceLeaveEvent) e).getChannelLeft())){
-                    matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
+    }
+
+    @SubscribeEvent
+    public void onMessageContextInteraction(MessageContextInteractionEvent event) {
+        System.out.println("Message Context Menu");
+        if (event.getName().equals("Count words")) {
+            event.reply("Words: " + event.getTarget().getContentRaw().split("\\s+").length).queue();
+        }
+    }
+
+    @SubscribeEvent
+    public void onVoiceChannelEvent(GuildVoiceUpdateEvent e) {
+        if (e != null) {
+            if (e.getChannelJoined() == null) {
+                if (channels.contains(e.getChannelLeft())){
+                    matchingTextChannels.get(e.getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
                     try {
-                        matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).upsertPermissionOverride(((GuildVoiceLeaveEvent) e).getMember()).setDenied(Permission.VIEW_CHANNEL).queue();
+                        matchingTextChannels.get(e.getChannelLeft()).upsertPermissionOverride(e.getMember()).setDenied(Permission.VIEW_CHANNEL).queue();
                     } catch (Exception ex) {
                         return;
                     }
-                    if (((GuildVoiceLeaveEvent) e).getChannelLeft().getMembers().isEmpty()) {
-                        matchingTextChannels.get(((GuildVoiceLeaveEvent) e).getChannelLeft()).delete().queue();
-                        matchingTextChannels.remove(((GuildVoiceLeaveEvent) e).getChannelLeft());
-                        ((GuildVoiceLeaveEvent) e).getChannelLeft().delete().queue();
-                        channels.remove(((GuildVoiceLeaveEvent) e).getChannelLeft());
+                    if (e.getChannelLeft().getMembers().isEmpty()) {
+                        matchingTextChannels.get(e.getChannelLeft()).delete().queue();
+                        matchingTextChannels.remove(e.getChannelLeft());
+                        e.getChannelLeft().delete().queue();
+                        channels.remove(e.getChannelLeft());
                     }
                 }
             } else {
-                if (channels.contains(((GuildVoiceMoveEvent) e).getChannelLeft())){
-                    matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
+                if (channels.contains(e.getChannelLeft())){
+                    matchingTextChannels.get(e.getChannelLeft()).sendMessage("<@" + e.getMember().getId() + "> hat den Kanal verlassen").queue();
                     try {
-                    matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).upsertPermissionOverride(((GuildVoiceMoveEvent) e).getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
+                    matchingTextChannels.get(e.getChannelLeft()).upsertPermissionOverride(e.getMember()).setAllowed(Permission.VIEW_CHANNEL).queue();
                     } catch (Exception ex) {
                         return;
                     }
-                    if (((GuildVoiceMoveEvent) e).getChannelLeft().getMembers().isEmpty()) {
-                        matchingTextChannels.get(((GuildVoiceMoveEvent) e).getChannelLeft()).delete().queue();
-                        matchingTextChannels.remove(((GuildVoiceMoveEvent) e).getChannelLeft());
-                        ((GuildVoiceMoveEvent) e).getChannelLeft().delete().queue();
-                        channels.remove(((GuildVoiceMoveEvent) e).getChannelLeft());
+                    if (e.getChannelLeft().getMembers().isEmpty()) {
+                        matchingTextChannels.get(e.getChannelLeft()).delete().queue();
+                        matchingTextChannels.remove(e.getChannelLeft());
+                        e.getChannelLeft().delete().queue();
+                        channels.remove(e.getChannelLeft());
                     }
                 }
             }
         }
         Category category = null;
         for ( Category c : e.getGuild().getCategories()) {
-            if (c.getName().contains("Eigene Ka")) {
+            if (c.getName().contains("Channels")) {
                 category = c;
                 break;
             }
+        } if (category == null) {
+            category = e.getGuild().createCategory("Channels").complete();
         }
         if (e.getVoiceState().getChannel() == null) {
             return;
@@ -204,19 +251,17 @@ public class Main {
     }
 
     @SubscribeEvent
-    public void onVanJoin(GenericGuildVoiceEvent e) {
-        if (e instanceof GuildVoiceJoinEvent || e instanceof GuildVoiceMoveEvent) {
-            if (e.getMember().getUser().isBot()) {
+    public void onVanJoin(GuildVoiceUpdateEvent e) {
+            if (e.getMember().getUser().isBot() || e.getChannelJoined() == null || mobbingMembers.contains(e.getMember())) {
                 return;
             }
-            if (((GenericGuildVoiceUpdateEvent) e).getChannelJoined().getName().toLowerCase().contains("van")) {
+            if (e.getChannelJoined().getName().toLowerCase().contains("van")) {
                 e.getGuild().getVoiceChannels().forEach(voiceChannel -> {
                     if (voiceChannel.getName().toLowerCase().contains("keller")) {
                         e.getGuild().moveVoiceMember(e.getMember(), voiceChannel).queue();
                     }
                 });
             }
-        }
     }
 
     public static void randomMove() {
