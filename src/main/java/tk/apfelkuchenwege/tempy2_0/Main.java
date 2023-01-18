@@ -137,6 +137,7 @@ public class Main {
                 mobbingMembers.remove(event.getTargetMember());
             });
             t.start();
+            event.reply("e").queue();
         } else if (event.getName().equals("lock")) {
             if (event.getTargetMember().getVoiceState().getChannel() == null) {
                 return;
@@ -152,6 +153,7 @@ public class Main {
                     lockThread.start();
                 }
             }
+            event.reply("Locked: " + lockedMembers.contains(event.getTargetMember())).queue();
         }
     }
 
