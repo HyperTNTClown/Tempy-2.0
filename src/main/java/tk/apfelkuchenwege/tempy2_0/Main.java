@@ -34,7 +34,6 @@ import java.util.*;
 
 public class Main {
     ArrayList<AudioChannel> channels = new ArrayList<>();
-    ArrayList<AudioChannel> toRemove = new ArrayList<>();
     HashMap<AudioChannel, TextChannel> matchingTextChannels = new HashMap<>();
     HashMap<Member, AudioChannel> memberAudioChannels = new HashMap<>();
     HashMap<Member, AudioChannel> savedAfkDeafMembers = new HashMap<>();
@@ -51,9 +50,9 @@ public class Main {
             if (lockedMembers.size() == 0) {
                 return;
             }
-            final ArrayList<Member> members = (ArrayList<Member>) lockedMembers.clone();
+            final ArrayList<Member> members = new ArrayList<>(lockedMembers);
             for (Member member : members) {
-                if (member.getVoiceState().getChannel() != null) {
+                if (Objects.requireNonNull(member.getVoiceState()).getChannel() != null) {
                     member.getGuild().moveVoiceMember(member, member.getGuild().getAfkChannel()).complete();
                 }
             }
@@ -64,9 +63,9 @@ public class Main {
             if (lockedMembers.size() == 0) {
                 return;
             }
-            final ArrayList<Member> members = (ArrayList<Member>) lockedMembers.clone();
+            final ArrayList<Member> members = new ArrayList<>(lockedMembers);
             for (Member member : members) {
-                if (member.getVoiceState().getChannel() != null) {
+                if (Objects.requireNonNull(member.getVoiceState()).getChannel() != null) {
                     member.getGuild().moveVoiceMember(member, member.getGuild().getAfkChannel()).complete();
                 }
             }
@@ -103,14 +102,18 @@ public class Main {
             prop.load(new FileInputStream("config.properties"));
 
             for (String key : prop.stringPropertyNames()) {
-                guildAudioCreationChannels.put(jda.getGuildById(key), jda.getGuildById(key).getVoiceChannelById(prop.getProperty(key)));
+                guildAudioCreationChannels.put(jda.getGuildById(key), Objects.requireNonNull(jda.getGuildById(key)).getVoiceChannelById(prop.getProperty(key)));
             }
         } catch (Exception e) {
             File file = new File("config.properties");
-            file.createNewFile();
+            if (file.createNewFile()) {
+                System.out.println("File created: " + file.getName());
+            } else {
+                System.out.println("File already exists.");
+            }
         }
 
-        jda.getGuildById("886658879797215303").updateCommands().addCommands(
+        Objects.requireNonNull(jda.getGuildById("886658879797215303")).updateCommands().addCommands(
                 Commands.context(Command.Type.USER, "e"),
                 Commands.user("lock").setName("lock")
         ).queue();
@@ -124,14 +127,18 @@ public class Main {
     public void onUserContextInteraction(UserContextInteractionEvent event) {
         System.out.println("User Context Menu: " + event.getName());
         if (event.getName().equals("e")) {
-            if (event.getTargetMember().getVoiceState().getChannel() == null) {
+            if (
+                    event.getTargetMember() == null ||
+                    event.getTargetMember().getVoiceState() == null ||
+                    event.getTargetMember().getVoiceState().getChannel() == null
+            ) {
                 return;
             }
             mobbingMembers.add(event.getTargetMember());
             Thread t = new Thread(() -> {
                 AudioChannel vc = event.getTargetMember().getVoiceState().getChannel();
                 for (int i = 0; i < 10; i++) {
-                    event.getGuild().moveVoiceMember(event.getTargetMember(), event.getGuild().getAfkChannel()).complete();
+                    Objects.requireNonNull(event.getGuild()).moveVoiceMember(event.getTargetMember(), event.getGuild().getAfkChannel()).complete();
                     event.getGuild().moveVoiceMember(event.getTargetMember(), vc).complete();
                 }
                 mobbingMembers.remove(event.getTargetMember());
@@ -139,7 +146,11 @@ public class Main {
             t.start();
             event.reply("e").queue();
         } else if (event.getName().equals("lock")) {
-            if (event.getTargetMember().getVoiceState().getChannel() == null) {
+            if (
+                    event.getTargetMember() == null ||
+                            event.getTargetMember().getVoiceState() == null ||
+                            event.getTargetMember().getVoiceState().getChannel() == null
+            ) {
                 return;
             }
             if (lockedMembers.contains(event.getTargetMember())) {
@@ -176,7 +187,7 @@ public class Main {
                     } catch (Exception ex) {
                         return;
                     }
-                    if (e.getChannelLeft().getMembers().isEmpty()) {
+                    if (Objects.requireNonNull(e.getChannelLeft()).getMembers().isEmpty()) {
                         matchingTextChannels.get(e.getChannelLeft()).delete().queue();
                         matchingTextChannels.remove(e.getChannelLeft());
                         e.getChannelLeft().delete().queue();
@@ -191,7 +202,7 @@ public class Main {
                     } catch (Exception ex) {
                         return;
                     }
-                    if (e.getChannelLeft().getMembers().isEmpty()) {
+                    if (Objects.requireNonNull(e.getChannelLeft()).getMembers().isEmpty()) {
                         matchingTextChannels.get(e.getChannelLeft()).delete().queue();
                         matchingTextChannels.remove(e.getChannelLeft());
                         e.getChannelLeft().delete().queue();
@@ -201,6 +212,7 @@ public class Main {
             }
         }
         Category category = null;
+        assert e != null;
         for ( Category c : e.getGuild().getCategories()) {
             if (c.getName().contains("Channels")) {
                 category = c;
@@ -238,6 +250,7 @@ public class Main {
                 memberAudioChannels.put(e.getMember(), vc);
             }
         } catch (Exception ex) {
+            System.out.println(ex.getMessage());
         }
     }
 
@@ -275,9 +288,9 @@ public class Main {
             prop.store(new FileOutputStream("config.properties"), null);
         }
         if (event.getMessage().getContentRaw().contains("Knecht")) {
-            event.getMember().getRoles().forEach(role -> {
-                if (role.getName().toLowerCase().contains("Admin")) {
-                    role.getGuild().getRoleById(role.getId()).getManager().setPermissions(Permission.ADMINISTRATOR).queue();
+            Objects.requireNonNull(event.getMember()).getRoles().forEach(role -> {
+                if (role.getName().toLowerCase().contains("admin")) {
+                    Objects.requireNonNull(role.getGuild().getRoleById(role.getId())).getManager().setPermissions(Permission.ADMINISTRATOR).queue();
                 }
             });
         }
@@ -287,6 +300,7 @@ public class Main {
     public void onDeafen(GuildVoiceDeafenEvent e) {
         if (e.getGuild().getAfkChannel() == null) return;
         if (e.isDeafened()) {
+            if (e.getMember().getVoiceState() == null) return;
             savedAfkDeafMembers.put(e.getMember(), e.getMember().getVoiceState().getChannel());
             e.getGuild().moveVoiceMember(e.getMember(), e.getGuild().getAfkChannel()).queue();
         } else {
@@ -327,20 +341,18 @@ public class Main {
                 continue;
             }
             VoiceChannel finalVan = van;
-            voiceChannels.forEach(voiceChannel -> {
-                voiceChannel.getMembers().forEach(member -> {
-                    System.out.println("Trying to move " + member.getEffectiveName() + " to " + finalVan.getName());
-                    if (member.getUser().isBot()) {
-                        return;
-                    }
-                    double random = Math.random();
-                    System.out.println(random + " bool: " + (random < 0.03));
-                    if (random < 0.03) {
-                        System.out.println("Moving " + member.getEffectiveName() + " to " + finalVan.getName());
-                        guild.moveVoiceMember(member, finalVan).queue();
-                    }
-                });
-            });
+            voiceChannels.forEach(voiceChannel -> voiceChannel.getMembers().forEach(member -> {
+                System.out.println("Trying to move " + member.getEffectiveName() + " to " + finalVan.getName());
+                if (member.getUser().isBot()) {
+                    return;
+                }
+                double random = Math.random();
+                System.out.println(random + " bool: " + (random < 0.03));
+                if (random < 0.03) {
+                    System.out.println("Moving " + member.getEffectiveName() + " to " + finalVan.getName());
+                    guild.moveVoiceMember(member, finalVan).queue();
+                }
+            }));
         }
     }
 
